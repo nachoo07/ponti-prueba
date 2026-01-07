@@ -37,7 +37,7 @@ jobs:
           docker build -t $IMAGE_URL:${{ github.sha }} .
           docker push $IMAGE_URL:${{ github.sha }}
 
-      # 4. Despliegue a DEV
+      # --- PARTE DE DESARROLLO (Rama develop) ---
       - name: Deploy to DEV
         if: github.ref == 'refs/heads/develop'
         uses: google-github-actions/deploy-cloudrun@v2
@@ -45,9 +45,16 @@ jobs:
           service: ponti-api-dev
           image: ${{ env.IMAGE_URL }}:${{ github.sha }}
           region: ${{ env.REGION }}
-          env_vars: NODE_ENV=development
+          env_vars: |
+            NODE_ENV=development
+            DB_HOST=${{ secrets.DB_HOST_DEV }}
+            DB_PORT=5432
+            DB_USER=${{ secrets.DB_USER_DEV }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD_DEV }}
+            DB_NAME=${{ secrets.DB_NAME_DEV }}
+            X_API_KEY=${{ secrets.API_KEY_DEV }}
 
-      # 5. Despliegue a PROD
+      # --- PARTE DE PRODUCCIÓN (Rama main) ---
       - name: Deploy to PROD
         if: github.ref == 'refs/heads/main'
         uses: google-github-actions/deploy-cloudrun@v2
@@ -55,4 +62,11 @@ jobs:
           service: ponti-api-prod
           image: ${{ env.IMAGE_URL }}:${{ github.sha }}
           region: ${{ env.REGION }}
-          env_vars: NODE_ENV=production
+          env_vars: |
+            NODE_ENV=production
+            DB_HOST=${{ secrets.DB_HOST_DEV }}
+            DB_PORT=5432
+            DB_USER=${{ secrets.DB_USER_DEV }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD_DEV }}
+            DB_NAME=${{ secrets.DB_NAME_DEV }}
+            X_API_KEY=${{ secrets.API_KEY_DEV }}
