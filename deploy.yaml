@@ -1,0 +1,76 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  IMAGE_NAME: ponti-app  # Usaremos una sola imagen para todos por ahora
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 1. Autenticación con tu JSON (La llave maestra)
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # 2. Configurar Docker
+      - name: Configure Docker
+        run: gcloud auth configure-docker
+
+      # 3. Construir y Subir la Imagen una sola vez
+      - name: Build and Push Docker Image
+        run: |
+          docker build -t gcr.io/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }} .
+          docker push gcr.io/$PROJECT_ID/$IMAGE_NAME:${{ github.sha }}
+
+      # --- DESPLIEGUE A DESARROLLO (Rama develop) ---
+      # Actualiza los 3 servicios de golpe cuando tocas 'develop'
+      - name: Deploy to DEV (Ponti API)
+        if: github.ref == 'refs/heads/develop'
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ponti-api-dev
+          image: gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          region: ${{ env.REGION }}
+          env_vars: NODE_ENV=development
+
+      - name: Deploy to DEV (Auth API)
+        if: github.ref == 'refs/heads/develop'
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: auth-api-dev
+          image: gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          region: ${{ env.REGION }}
+          env_vars: NODE_ENV=development
+
+      - name: Deploy to DEV (UI)
+        if: github.ref == 'refs/heads/develop'
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ui-dev
+          image: gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          region: ${{ env.REGION }}
+          env_vars: NODE_ENV=development
+
+      # --- DESPLIEGUE A PRODUCCIÓN (Rama main) ---
+      # Solo si tienes creados los servicios *-prod, esto funcionará al tocar 'main'
+      - name: Deploy to PROD (Ponti API)
+        if: github.ref == 'refs/heads/main'
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ponti-api-prod
+          image: gcr.io/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          region: ${{ env.REGION }}
+          env_vars: NODE_ENV=production
